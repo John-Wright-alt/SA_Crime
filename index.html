@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>South Africa Crime Statistics</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>South Africa Crime Statistics Dashboard</h1>
+            <div class="year-selector">
+                <label for="yearSelect">Year:</label>
+                <select id="yearSelect">
+                    {% for year in years %}
+                    <option value="{{ year }}" {% if year == current_year %}selected{% endif %}>{{ year }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </header>
+
+        <div class="main-content">
+            <div class="left-panel">
+                <div class="controls">
+                    <div class="filter-group">
+                        <label for="provinceFilter">Province:</label>
+                        <select id="provinceFilter">
+                            <option value="">All Provinces</option>
+                            {% for province in province_data.keys() %}
+                            <option value="{{ province }}">{{ province }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label for="categoryFilter">Crime Category:</label>
+                        <select id="categoryFilter">
+                            <option value="">All Categories</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="crime-categories">
+                    <h3>Crime Categories</h3>
+                    <div class="category-list" id="categoryList">
+                        {% for category, count in category_data.items() %}
+                        <div class="category-item">
+                            <span class="category-name">{{ category }}</span>
+                            <span class="category-count">{{ "%.0f"|format(count) }}</span>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+
+            <div class="right-panel">
+                <div id="map"></div>
+            </div>
+        </div>
+
+        <div class="navigation-buttons">
+            <button class="nav-btn" onclick="location.href='/province-trends'">
+                Individual Province Trends
+            </button>
+            <button class="nav-btn" onclick="location.href='/category-analysis'">
+                Crime Analysis by Category
+            </button>
+            <button class="nav-btn" onclick="location.href='/evolution-analysis'">
+                Evolution Analysis
+            </button>
+        </div>
+
+        <div class="charts-section">
+            <div class="chart-container">
+                <h3>Crime Evolution by Province</h3>
+                <canvas id="provinceEvolutionChart"></canvas>
+            </div>
+            <div class="chart-container">
+                <h3>Total Crimes by Province ({{ current_year }})</h3>
+                <canvas id="provinceBarChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+    <script>
+        // Initialize the dashboard
+        document.addEventListener('DOMContentLoaded', function() {
+            initializeMap();
+            initializeCharts();
+            setupEventListeners();
+        });
+    </script>
+</body>
+</html>
