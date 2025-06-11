@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Category Analysis - South Africa Crime Statistics</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Crime Analysis by Category</h1>
+            <div class="controls">
+                <button onclick="location.href='/'" class="nav-btn">Back to Dashboard</button>
+                <select id="yearSelector">
+                    {% for year in years %}
+                    <option value="{{ year }}">{{ year }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </header>
+
+        <div class="analysis-grid">
+            <div class="chart-container large">
+                <h3>Crime Categories Distribution</h3>
+                <canvas id="categoryPieChart"></canvas>
+            </div>
+            
+            <div class="chart-container large">
+                <h3>Top 10 Crime Categories</h3>
+                <canvas id="categoryBarChart"></canvas>
+            </div>
+            
+            <div class="chart-container large">
+                <h3>Category Trends Over Time</h3>
+                <canvas id="categoryTrendChart"></canvas>
+            </div>
+            
+            <div class="chart-container large">
+                <h3>Category Severity Analysis</h3>
+                <canvas id="severityChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <script>
+let categoryCharts = {};
+let currentYear = '{{ years[-1] }}';
+let years = {{ years|tojson }};
+
+document.addEventListener('DOMContentLoaded', function() {
+    initializeCategoryAnalysis();
+    setupEventListeners();
+});
+
+function initializeCategoryAnalysis() {
+    createCategoryPieChart();
+    createCategoryBarChart();
+    createCategoryTrendChart();
+    createCategoryAvgBarChart();
+}
+
+function createCategoryPieChart() {
+    const ctx = document.getElementById('categoryPieChart').getContext('2d');
+    fetch(`/api/category-data/${currentYear}`)
+        .then(response => response.json())
+        .then(data => {
+            const categories = Object.keys(data);
+            const values = Object.values(data);
+            if (categoryCharts.pie) categoryCharts.pie.destroy();
+            categoryCharts.pie = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: categories,
+                    datasets: [{
+                        data: values,
+                        backgroundColor: categories.map((c, i) => `hsl(${i*30%360},70%,60%)`)
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: { position: 'bottom' }
+                    }
+                }
+            });
+        });
+}
+
+function createCategoryBarChart() {
+    const ctx = document.getElementById('categoryBarChart').getContext('2d');
+    fetch(`/api/category-data/${currentYear}`)
+        .then(response => response.json())
+        .then(data => {
+            const sorted = Object.entries(data).sort((a,b) => b[1]-a[1]).slice(0, 10);
+            const categories = sorted.map(([c, v]) => c);
+            const values = sorted.map(([c, v]) => v);
+            if (categoryCharts.bar) categoryCharts.bar.destroy();
+            categoryCharts.bar = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: categories,
+                    datasets: [{
+                        label: 'Crime Count',
+                        data: values,
+                        backgroundColor: '#FF6384'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: { legend: { display: false } },
+                    indexAxis: 'y'
+                }
+            });
+        });
+}
+
+// Multi-line chart: top 5 categories over years
+function createCategoryTrendChart() {
+    const ctx = document.getElementById('categoryTrendChart').getContext('2d');
+    fetch('/api/category-evolution')
+        .then(response => response.json())
+        .then(data => {
+            // Find top 5 categories by last year
+            let lastYear = data.years[data.years.length-1];
+            let catTotals = data.categories.map((cat, idx) => ({
+                cat,
+                val: data.data[idx][lastYear] || 0
+            }));
+            catTotals.sort((a,b) => b.val - a.val);
+            let top5 = catTotals.slice(0,5).map(x=>x.cat);
+
+            let datasets = top5.map((cat, i) => {
+                let idx = data.categories.indexOf(cat);
+                return {
+                    label: cat,
+                    data: data.years.map(y => data.data[idx][y] || 0),
+                    borderColor: `hsl(${i*60},80%,50%)`,
+                    backgroundColor: `hsl(${i*60},80%,80%)`,
+                    fill: false
+                }
+            });
+            if (categoryCharts.trend) categoryCharts.trend.destroy();
+            categoryCharts.trend = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: data.years,
+                    datasets: datasets
+                },
+                options: {
+                    responsive: true,
+                    plugins: { legend: { position: 'top' } },
+                    scales: { y: { beginAtZero: true } }
+                }
+            });
+        });
+}
+
+// Horizontal bar: average per category over all years
+function createCategoryAvgBarChart() {
+    const ctx = document.getElementById('severityChart').getContext('2d');
+    fetch('/api/category-evolution')
+        .then(response => response.json())
+        .then(data => {
+            // Average for each category
+            let avgData = data.categories.map((cat, idx) => {
+                let vals = data.years.map(y => data.data[idx][y] || 0);
+                return [cat, vals.reduce((a,b) => a+b, 0)/vals.length];
+            });
+            avgData.sort((a,b) => b[1]-a[1]);
+            let cats = avgData.map(x=>x[0]);
+            let avgs = avgData.map(x=>x[1]);
+            if (categoryCharts.avg) categoryCharts.avg.destroy();
+            categoryCharts.avg = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: cats,
+                    datasets: [{
+                        label: 'Avg. Crimes per Year',
+                        data: avgs,
+                        backgroundColor: cats.map((c,i)=>`hsl(${i*30%360},60%,70%)`)
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: { legend: { display: false } },
+                    indexAxis: 'y',
+                    scales: { x: { beginAtZero: true } }
+                }
+            });
+        });
+}
+
+function setupEventListeners() {
+    document.getElementById('yearSelector').addEventListener('change', function() {
+        currentYear = this.value;
+        createCategoryPieChart();
+        createCategoryBarChart();
+    });
+}
+</script>
+
+
+    <style>
+        .analysis-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-top: 20px;
+        }
+        
+        .chart-container.large {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        .controls {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+        }
+        
+        #yearSelector {
+            padding: 8px 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+    </style>
+</body>
+</html>

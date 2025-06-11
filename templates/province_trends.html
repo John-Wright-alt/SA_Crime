@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Individual Province Trends</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+</head>
+<body>
+<div class="container">
+    <header>
+        <h1>Individual Province Trends</h1>
+        <button onclick="location.href='/'" class="nav-btn">Back to Dashboard</button>
+        <select id="provinceSelect"></select>
+    </header>
+    <div class="charts-grid">
+        <div class="chart-container">
+            <h3>Crime Category Breakdown (Stacked Bar)</h3>
+            <canvas id="provinceStackedBar"></canvas>
+        </div>
+        <div class="chart-container">
+            <h3>Crime Trend Over Years (Line Chart)</h3>
+            <canvas id="provinceLineChart"></canvas>
+        </div>
+    </div>
+</div>
+<script>
+let provinceList = [];
+let years = {{ years|tojson }};
+let currentProvince = null;
+let stackedBarChart = null;
+let lineChart = null;
+
+// Fetch all provinces
+function fetchProvinces() {
+    fetch('/api/province-data')
+        .then(res => res.json())
+        .then(data => {
+            provinceList = Object.keys(data);
+            const select = document.getElementById('provinceSelect');
+            select.innerHTML = provinceList.map(p => `<option value="${p}">${p}</option>`).join('');
+            currentProvince = provinceList[0];
+            select.value = currentProvince;
+            select.onchange = function() {
+                currentProvince = this.value;
+                updateCharts();
+            };
+            updateCharts();
+        });
+}
+
+// Fetch and plot crime category breakdown for the selected province
+function updateCharts() {
+    // Fetch category data for the province over years
+    fetch('/api/category-evolution')
+        .then(res => res.json())
+        .then(catData => {
+            // Filter for the current province
+            fetch('/api/province-data')
+                .then(res => res.json())
+                .then(provData => {
+                    // --- Stacked Bar Chart ---
+                    // For each year, get the sum for each category for this province
+                    let categoryNames = catData.categories;
+                    let yearLabels = catData.years;
+                    let datasets = [];
+                    categoryNames.forEach((cat, idx) => {
+                        let data = [];
+                        for (let y = 0; y < yearLabels.length; y++) {
+                            // You would need to adjust your backend to provide category per province per year
+                            // For now, just use the total per category per year (not strictly per province)
+                            data.push(catData.data[idx][yearLabels[y]]);
+                        }
+                        datasets.push({
+                            label: cat,
+                            data: data,
+                            backgroundColor: `hsl(${idx*30%360},70%,60%)`,
+                            stack: 'Stack 0'
+                        });
+                    });
+                    if (stackedBarChart) stackedBarChart.destroy();
+                    stackedBarChart = new Chart(document.getElementById('provinceStackedBar').getContext('2d'), {
+                        type: 'bar',
+                        data: {
+                            labels: yearLabels,
+                            datasets: datasets
+                        },
+                        options: {
+                            responsive: true,
+                            plugins: {
+                                legend: { position: 'right' }
+                            },
+                            scales: {
+                                x: { stacked: true },
+                                y: { stacked: true, beginAtZero: true }
+                            }
+                        }
+                    });
+
+                    // --- Line Chart (Total Crimes in Province over Years) ---
+                    let provinceTotals = [];
+                    for (let y = 0; y < years.length; y++) {
+                        let year = years[y];
+                        provinceTotals.push(provData[currentProvince][year] || 0);
+                    }
+                    if (lineChart) lineChart.destroy();
+                    lineChart = new Chart(document.getElementById('provinceLineChart').getContext('2d'), {
+                        type: 'line',
+                        data: {
+                            labels: years,
+                            datasets: [{
+                                label: currentProvince + ' Total Crimes',
+                                data: provinceTotals,
+                                fill: false,
+                                borderColor: '#e74c3c',
+                                backgroundColor: '#e74c3c'
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            plugins: {
+                                legend: { display: false }
+                            },
+                            scales: {
+                                y: { beginAtZero: true }
+                            }
+                        }
+                    });
+                });
+        });
+}
+
+document.addEventListener('DOMContentLoaded', fetchProvinces);
+</script>
+<style>
+.charts-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    margin-top: 20px;
+}
+</style>
+</body>
+</html>
