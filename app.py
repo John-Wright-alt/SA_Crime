@@ -25,7 +25,7 @@ class CrimeDataProcessor:
         """Load and process crime data"""
         try:
             # Define the absolute path to your data directory
-            data_dir = r'C:\Users\John\Desktop\south_africa_crime_viz\data'
+            data_dir = r'..\data'
             
             # Load CSV data
             csv_path = os.path.join(data_dir, 'SouthAfricaCrimeStats_v2.csv')
